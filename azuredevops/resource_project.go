@@ -2,6 +2,7 @@ package azuredevops
 
 import (
 	"fmt"
+	"github.com/microsoft/terraform-provider-azuredevops/azuredevops/utils/tfhelper"
 	"log"
 	"os"
 	"strconv"
@@ -32,8 +33,6 @@ func resourceProject() *schema.Resource {
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
 		},
-
-		//https://godoc.org/github.com/hashicorp/terraform/helper/schema#Schema
 		Schema: map[string]*schema.Schema{
 			"project_name": {
 				Type:             schema.TypeString,
@@ -142,7 +141,7 @@ func resourceProjectRead(d *schema.ResourceData, m interface{}) error {
 
 	id := d.Id()
 	name := d.Get("project_name").(string)
-	project, err := projectRead(clients, id, name)
+	project, err := ProjectRead(clients, id, name)
 	if err != nil {
 		return fmt.Errorf("Error looking up project with ID %s and Name %s", id, name)
 	}
@@ -154,10 +153,10 @@ func resourceProjectRead(d *schema.ResourceData, m interface{}) error {
 	return nil
 }
 
-// Lookup a project using the ID, or name if the ID is not set. Note, usage of the name in place
+// ProjectRead Lookup a project using the ID, or name if the ID is not set. Note, usage of the name in place
 // of the ID is an explicitly stated supported behavior:
 //		https://docs.microsoft.com/en-us/rest/api/azure/devops/core/projects/get?view=azure-devops-rest-5.0
-func projectRead(clients *config.AggregatedClient, projectID string, projectName string) (*core.TeamProject, error) {
+func ProjectRead(clients *config.AggregatedClient, projectID string, projectName string) (*core.TeamProject, error) {
 	identifier := projectID
 	if identifier == "" {
 		identifier = projectName
@@ -329,4 +328,36 @@ func lookupProcessTemplateName(clients *config.AggregatedClient, templateID stri
 	}
 
 	return *process.Name, nil
+}
+
+// ParseImportedProjectIDAndID : Parse the Id (projectId/int) or (projectName/int)
+func ParseImportedProjectIDAndID(clients *config.AggregatedClient, id string) (string, int, error) {
+	project, resourceID, err := tfhelper.ParseImportedID(id)
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Get the project ID
+	currentProject, err := projectRead(clients, project, project)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return currentProject.Id.String(), resourceID, nil
+}
+
+// ParseImportedProjectIDAndUUID : Parse the Id (projectId/uuid) or (projectName/uuid)
+func ParseImportedProjectIDAndUUID(clients *config.AggregatedClient, id string) (string, string, error) {
+	project, resourceID, err := tfhelper.ParseImportedUUID(id)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Get the project ID
+	currentProject, err := projectRead(clients, project, project)
+	if err != nil {
+		return "", "", err
+	}
+
+	return currentProject.Id.String(), resourceID, nil
 }
